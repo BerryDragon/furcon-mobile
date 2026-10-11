@@ -1,0 +1,39 @@
+{
+  "name": "furcon-map-mobile",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@gorhom/bottom-sheet": "^5.2.14",
+    "@maplibre/maplibre-react-native": "^11.5.0",
+    "expo": "~57.0.27",
+    "expo-dev-client": "~57.0.19",
+    "expo-location": "~57.0.20",
+    "expo-sqlite": "~57.0.4",
+    "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.4",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-reanimated": "^4.5.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-worklets": "^0.10.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/react": "~19.2.2",
+    "jest": "^29.7.0",
+    "jest-expo": "~57.0.5",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "test": "jest",
+    "typecheck": "tsc --noEmit",
+    "export-seed": "python scripts/export_seed.py --sql ../FurCon-Map-Track/data/seed_conventions.sql"
+  },
+  "private": true,
+  "jest": {
+    "preset": "jest-expo"
+  }
+}
