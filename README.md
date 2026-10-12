@@ -1,4 +1,4 @@
-# FurCon Map (mobile)
+# FurCon Map (mobile) (Unfortunetely 90% AI, 10% my code)
 
 A fast, smooth map of furry conventions for Android (and later iOS). Built with Expo (React Native),
 TypeScript, and MapLibre. This is the mobile companion to the website repo, FurCon-Map-Track.
