@@ -6,7 +6,6 @@ import {
   Map as MapView,
   Marker,
   type CameraRef,
-  type GeoJSONSourceRef,
   type PressEventWithFeatures,
   type ViewStateChangeEvent,
 } from '@maplibre/maplibre-react-native';
@@ -14,6 +13,7 @@ import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BackHandler,
+  Animated,
   Keyboard,
   Pressable,
   StyleSheet,
@@ -26,8 +26,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomBar, type Panel } from '../components/BottomBar';
 import { DetailsPanel } from '../components/DetailsPanel';
 import { ListPanel, toListItems, type ListItem } from '../components/ListPanel';
+import { PawTrail } from '../components/PawTrail';
+import { SelectedPaw } from '../components/SelectedPaw';
 import { SearchBar } from '../components/SearchBar';
 import { Sheet, type SheetMode } from '../components/Sheet';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { UserRadar } from '../components/UserRadar';
 import {
   BAR_HEIGHT,
@@ -36,7 +39,6 @@ import {
   INITIAL_ZOOM,
   LOCATE_ZOOM,
   NEAREST_COUNT,
-  SHEET_LIST_FRACTION,
   SHEET_PEEK_FRACTION,
 } from '../config';
 import {
@@ -44,10 +46,10 @@ import {
   conventions,
   conventionsById,
   nearTargets,
-  snapshotYear,
-  upcomingCount,
+  pinCoordinatesById,
 } from '../data/conventions';
 import { boundsOf, haversineMiles } from '../lib/geo';
+import { eventStatus } from '../lib/dates';
 import { EMPTY_ROUTES, nearestTo, routeFeatures } from '../lib/nearest';
 import { createSearcher } from '../lib/search';
 import { useReducedMotion } from '../lib/useReducedMotion';
@@ -61,6 +63,7 @@ const popular = [...conventions].sort((a, b) => a.popularityRank - b.popularityR
 const PIN_IMAGES = {
   paw: require('../../assets/paw.png'),
   'paw-past': require('../../assets/paw-past.png'),
+  'paw-saved': require('../../assets/paw-saved.png'),
 };
 const NO_SELECTION = -1;
 const PANEL_LABELS: Record<Panel, string> = {
@@ -75,9 +78,24 @@ export function MapScreen() {
   const { height } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
   const dur = useCallback((ms: number) => (reduceMotion ? 0 : ms), [reduceMotion]);
+  const themeWash = useRef(new Animated.Value(0)).current;
+  const previousScheme = useRef(scheme);
+
+  useEffect(() => {
+    if (previousScheme.current === scheme) return;
+    previousScheme.current = scheme;
+    if (reduceMotion) {
+      themeWash.setValue(0);
+      return;
+    }
+    themeWash.setValue(0);
+    Animated.sequence([
+      Animated.timing(themeWash, { toValue: 0.12, duration: 110, useNativeDriver: true }),
+      Animated.timing(themeWash, { toValue: 0, duration: 240, useNativeDriver: true }),
+    ]).start();
+  }, [scheme, reduceMotion, themeWash]);
 
   const cameraRef = useRef<CameraRef>(null);
-  const sourceRef = useRef<GeoJSONSourceRef>(null);
   // Refs, not state: panning must never re-render React. Also lets a theme switch keep the view.
   const viewRef = useRef<{ center: [number, number]; zoom: number }>({
     center: INITIAL_CENTER,
@@ -88,6 +106,7 @@ export function MapScreen() {
   const [panel, setPanel] = useState<Panel | null>(null);
   const [query, setQuery] = useState('');
   const [user, setUser] = useState<LatLng | null>(null);
+  const [mapZoom, setMapZoom] = useState(INITIAL_ZOOM);
   const [radarKey, setRadarKey] = useState(0);
   const [locating, setLocating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -102,11 +121,13 @@ export function MapScreen() {
   // Layout: the sheet floats above the bottom bar.
   const barOffset = insets.bottom + BAR_MARGIN;
   const sheetInset = barOffset + BAR_HEIGHT + 8;
-  const listSheetPx = (height - sheetInset) * SHEET_LIST_FRACTION + sheetInset;
   const peekSheetPx = (height - sheetInset) * SHEET_PEEK_FRACTION + sheetInset;
 
   const results = useMemo(() => search(query), [query]);
   const selected = selectedId === null ? null : (conventionsById.get(selectedId) ?? null);
+  const selectedPin = selected
+    ? pinCoordinatesById.get(selected.id) ?? [selected.longitude, selected.latitude]
+    : null;
 
   // Computed once per location fix (100 haversines is well under a millisecond), so opening a
   // pin or a list never waits on math.
@@ -121,10 +142,9 @@ export function MapScreen() {
     [user],
   );
   const routes = useMemo(
-    () => (panel === 'nearest' && user ? routeFeatures(user, nearest) : EMPTY_ROUTES),
+    () => (panel === 'nearest' && user ? routeFeatures(user, nearest, pinCoordinatesById) : EMPTY_ROUTES),
     [panel, user, nearest],
   );
-
   const listItems = useMemo<ListItem[]>(() => {
     if (panel === 'nearest') return toListItems(nearest, true);
     if (panel === 'saved') {
@@ -146,15 +166,15 @@ export function MapScreen() {
   const mode: SheetMode = selected ? 'details' : panel ? 'list' : null;
 
   const select = useCallback(
-    (convention: Convention | null, fly = false) => {
+    (convention: Convention | null, fly: boolean | 'none' = false) => {
       Keyboard.dismiss();
       setQuery('');
+      if (convention) setNotice(null);
       setSelectedId(convention ? convention.id : null);
-      if (!convention) return;
+      if (!convention || fly === 'none') return;
       const stop = {
-        center: [convention.longitude, convention.latitude] as [number, number],
-        // Coming from search or a list the pin may be hiding inside a cluster, so go in far
-        // enough (clusters break up at zoom 10). Tapping a visible pin keeps the user's zoom.
+        center: pinCoordinatesById.get(convention.id) ?? [convention.longitude, convention.latitude],
+        // Search and list selections fly to neighborhood scale. Tapping a map pin keeps the zoom.
         zoom: fly ? Math.max(viewRef.current.zoom, 10) : viewRef.current.zoom,
         // Shift the target up so the pin lands in the visible map, above the sheet.
         padding: { bottom: peekSheetPx },
@@ -189,26 +209,15 @@ export function MapScreen() {
   }, [selectedId, panel, back]);
 
   const onSourcePress = useCallback(
-    async (event: NativeSyntheticEvent<PressEventWithFeatures>) => {
+    (event: NativeSyntheticEvent<PressEventWithFeatures>) => {
       event.stopPropagation(); // otherwise the map's own onPress would immediately deselect
       const feature = event.nativeEvent.features[0];
       if (!feature) return;
       const props = (feature.properties ?? {}) as Record<string, unknown>;
-
-      if (typeof props.point_count === 'number') {
-        const zoom = await sourceRef.current?.getClusterExpansionZoom(Number(props.cluster_id));
-        const [lng, lat] = (feature.geometry as GeoJSON.Point).coordinates;
-        cameraRef.current?.easeTo({
-          center: [lng, lat],
-          zoom: zoom ?? viewRef.current.zoom + 2,
-          duration: dur(350),
-        });
-        return;
-      }
       const convention = conventionsById.get(Number(props.id));
       if (convention) select(convention);
     },
-    [select, dur],
+    [select],
   );
 
   const ensureLocation = useCallback(async (): Promise<LatLng | null> => {
@@ -259,10 +268,18 @@ export function MapScreen() {
         if (locating) return;
         const me = user ?? (await ensureLocation());
         if (!me) return;
-        const bounds = boundsOf([me, ...nearestTo(me, nearTargets, NEAREST_COUNT).map((r) => r.convention)]);
+        const bounds = boundsOf([
+          me,
+          ...nearestTo(me, nearTargets, NEAREST_COUNT).map(({ convention }) => {
+            const pin = pinCoordinatesById.get(convention.id) ?? [convention.longitude, convention.latitude];
+            return { longitude: pin[0], latitude: pin[1] };
+          }),
+        ]);
         if (bounds) {
           cameraRef.current?.fitBounds(bounds, {
-            padding: { top: insets.top + 150, right: 48, bottom: listSheetPx + 24, left: 48 },
+            // The nearest sheet opens at its peek snap; fit to the actual visible map, with
+            // modest edge padding so the tenth result lands near the screen edge.
+            padding: { top: insets.top + 105, right: 36, bottom: peekSheetPx + 16, left: 36 },
             duration: dur(800),
           });
         }
@@ -270,28 +287,29 @@ export function MapScreen() {
       setSelectedId(null);
       setPanel(next);
     },
-    [panel, user, locating, ensureLocation, dismiss, insets.top, listSheetPx, dur],
+    [panel, user, locating, ensureLocation, dismiss, insets.top, peekSheetPx, dur],
   );
 
   const onRegionDidChange = useCallback((event: NativeSyntheticEvent<ViewStateChangeEvent>) => {
     const { center, zoom } = event.nativeEvent;
     viewRef.current = { center: [center[0], center[1]], zoom };
+    setMapZoom(zoom);
   }, []);
-
-  const staleBanner =
-    upcomingCount === 0 ? `Dates are from the ${snapshotYear} dataset and may be out of date.` : null;
-  const banner = notice ?? staleBanner;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.mapBg }]}>
       <MapView
-        key={scheme /* a theme switch loads the other basemap cleanly */}
         style={StyleSheet.absoluteFill}
         mapStyle={mapStyle}
         touchRotate={false}
         touchPitch={false}
         compass={false}
-        onPress={() => select(null)}
+        onPress={(event) => {
+          // A source tap can also arrive here on some native event paths. Keep the selection
+          // when the event contains a feature; only an empty map tap dismisses details.
+          if ('features' in event.nativeEvent && event.nativeEvent.features?.length) return;
+          select(null);
+        }}
         onRegionDidChange={onRegionDidChange}
       >
         <Images images={PIN_IMAGES} />
@@ -302,95 +320,52 @@ export function MapScreen() {
           maxZoom={16}
         />
 
-        {/* Dotted lines from you to the 10 nearest. Drawn first so pins sit on top. */}
-        <GeoJSONSource id="routes" data={routes}>
-          <Layer
-            id="route-lines"
-            type="line"
-            style={{
-              lineColor: colors.brand,
-              lineWidth: 3,
-              lineCap: 'round',
-              lineDasharray: [0.2, 2.2],
-            }}
-          />
-          <Layer
-            id="route-labels"
-            type="symbol"
-            style={{
-              symbolPlacement: 'line-center',
-              textField: ['get', 'label'],
-              textFont: ['Noto Sans Bold'],
-              textSize: 12,
-              textColor: colors.ink,
-              textHaloColor: colors.surface,
-              textHaloWidth: 2,
-            }}
-          />
-        </GeoJSONSource>
+        {panel === 'nearest' && user && (
+          <GeoJSONSource id="routes" data={routes}>
+            <Layer
+              id="route-lines"
+              type="line"
+              style={{
+                lineColor: colors.brand,
+                lineWidth: 3,
+                lineCap: 'round',
+                lineDasharray: [0.2, 2.2],
+              }}
+            />
+            <Layer
+              id="route-labels"
+              type="symbol"
+              style={{
+                symbolPlacement: 'line-center',
+                textField: ['get', 'label'],
+                textFont: ['Noto Sans Bold'],
+                textSize: 12,
+                textColor: colors.ink,
+                textHaloColor: colors.surface,
+                textHaloWidth: 2,
+              }}
+            />
+          </GeoJSONSource>
+        )}
 
         <GeoJSONSource
-          ref={sourceRef}
           id="conventions"
           data={conventionFeatures}
-          cluster
-          clusterRadius={44}
-          clusterMaxZoom={9}
+          cluster={false}
           onPress={onSourcePress}
         >
           <Layer
-            id="clusters"
-            type="circle"
-            filter={['has', 'point_count']}
-            style={{
-              circleColor: colors.brand,
-              circleRadius: ['step', ['get', 'point_count'], 18, 10, 23, 30, 29],
-              circleStrokeWidth: 3,
-              circleStrokeColor: colors.surface,
-            }}
-          />
-          <Layer
-            id="cluster-count"
-            type="symbol"
-            filter={['has', 'point_count']}
-            style={{
-              textField: ['get', 'point_count_abbreviated'],
-              textFont: ['Noto Sans Bold'],
-              textSize: 14,
-              textColor: colors.onBrand,
-              textAllowOverlap: true,
-              textIgnorePlacement: true,
-            }}
-          />
-          <Layer
-            id="saved-ring"
-            type="circle"
-            filter={['all', ['!', ['has', 'point_count']], ['in', ['get', 'id'], ['literal', savedIds]]]}
-            style={{
-              circleRadius: 22,
-              circleColor: 'rgba(0, 0, 0, 0)',
-              circleStrokeWidth: 3.5,
-              circleStrokeColor: colors.gold,
-            }}
-          />
-          <Layer
-            id="selected-halo"
-            type="circle"
-            filter={['==', ['get', 'id'], selectedId ?? NO_SELECTION]}
-            style={{
-              circleRadius: 24,
-              circleColor: colors.brandSoft,
-              circleStrokeWidth: 3,
-              circleStrokeColor: colors.brand,
-            }}
-          />
-          <Layer
             id="pins"
             type="symbol"
-            filter={['!', ['has', 'point_count']]}
+            filter={['!=', ['get', 'id'], selectedId ?? NO_SELECTION]}
             style={{
-              iconImage: ['case', ['get', 'past'], 'paw-past', 'paw'],
-              iconSize: ['case', ['==', ['get', 'id'], selectedId ?? NO_SELECTION], 1.3, 1],
+              iconImage: [
+                'case',
+                ['in', ['get', 'id'], ['literal', savedIds]], 'paw-saved',
+                ['get', 'past'], 'paw-past',
+                'paw',
+              ],
+              iconSize: 1,
               iconAllowOverlap: true,
               iconIgnorePlacement: true,
               iconAnchor: 'center',
@@ -398,12 +373,38 @@ export function MapScreen() {
           />
         </GeoJSONSource>
 
+        {selected && selectedPin && (
+          <SelectedPaw
+            key={`selected-paw-${selected.id}`}
+            id={selected.id}
+            coordinate={{ longitude: selectedPin[0], latitude: selectedPin[1] }}
+            saved={savedSet.has(selected.id)}
+            past={eventStatus(selected.endDate) === 'past'}
+            onPress={() => select(selected)}
+          />
+        )}
+
+        {selected && selectedPin && user && (
+          <PawTrail
+            key={`selected-trail-${selected.id}`}
+            routeKey={selected.id}
+            from={user}
+            to={{ longitude: selectedPin[0], latitude: selectedPin[1] }}
+            zoom={mapZoom}
+          />
+        )}
+
         {user && (
           <Marker lngLat={[user.longitude, user.latitude]} anchor="center">
             <UserRadar pingKey={radarKey} />
           </Marker>
         )}
       </MapView>
+
+      <Animated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { backgroundColor: colors.mapBg, opacity: themeWash }]}
+      />
 
       <View style={[styles.top, { top: insets.top + 8 }]} pointerEvents="box-none">
         <SearchBar
@@ -413,16 +414,17 @@ export function MapScreen() {
           onSelect={(c) => select(c, true)}
         />
         <View style={styles.row} pointerEvents="box-none">
-          {banner ? (
+          {notice ? (
             <View
               style={[styles.banner, { backgroundColor: colors.warnBg }]}
               accessibilityLiveRegion="polite"
             >
-              <Text style={[styles.bannerText, { color: colors.warnInk }]}>{banner}</Text>
+              <Text style={[styles.bannerText, { color: colors.warnInk }]}>{notice}</Text>
             </View>
           ) : (
             <View style={styles.spacer} />
           )}
+          <ThemeToggle />
           <Pressable
             onPress={onLocate}
             style={[styles.locate, { backgroundColor: colors.surface }, locating && styles.busy]}
@@ -444,7 +446,7 @@ export function MapScreen() {
         bottomOffset={barOffset}
       />
 
-      <Sheet mode={mode} bottomInset={sheetInset} onDismiss={dismiss}>
+      <Sheet mode={mode} listSnap={panel === 'nearest' ? 'peek' : 'list'} bottomInset={sheetInset} onDismiss={dismiss}>
         {selected ? (
           <DetailsPanel
             convention={selected}
@@ -459,7 +461,7 @@ export function MapScreen() {
             panel={panel}
             items={listItems}
             savedSet={savedSet}
-            onSelect={(c) => select(c, true)}
+            onSelect={(c) => select(c, panel === 'nearest' ? 'none' : true)}
             onToggleSave={toggle}
           />
         ) : (

@@ -15,7 +15,11 @@ export function nearestTo(from: LatLng, list: Convention[], count: number): Rank
 }
 
 /** One line from the user to each convention, labelled with its distance (for the dotted lines). */
-export function routeFeatures(from: LatLng, items: Ranked[]): RouteCollection {
+export function routeFeatures(
+  from: LatLng,
+  items: Ranked[],
+  pinCoordinates?: Map<number, [number, number]>,
+): RouteCollection {
   return {
     type: 'FeatureCollection',
     features: items.map(({ convention, miles }) => ({
@@ -26,7 +30,7 @@ export function routeFeatures(from: LatLng, items: Ranked[]): RouteCollection {
         type: 'LineString',
         coordinates: [
           [from.longitude, from.latitude],
-          [convention.longitude, convention.latitude],
+          pinCoordinates?.get(convention.id) ?? [convention.longitude, convention.latitude],
         ],
       },
     })),

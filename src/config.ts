@@ -1,8 +1,7 @@
 /**
  * Free vector basemaps (OpenStreetMap data) from OpenFreeMap: no API key, no usage limits on the
- * public instance, commercial use allowed, funded by donations. Their dark style is an unmodified
- * fork of OpenMapTiles "Dark Matter" and is labelled "not yet complete" upstream, so expect to
- * restyle it after launch. Swap these two lines to change provider.
+ * public instance, commercial use allowed, funded by donations. The dark map applies local color
+ * adjustments to the hosted style so parks, water, and major roads remain distinct at night.
  */
 export const MAP_STYLES = {
   light: 'https://tiles.openfreemap.org/styles/liberty',

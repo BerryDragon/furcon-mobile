@@ -1,5 +1,6 @@
 import type { Convention } from '../types';
 import { eventStatus, todayISO } from '../lib/dates';
+import { spreadCoincidentPins } from '../lib/pinPositions';
 import seed from './conventions.seed.json';
 
 /**
@@ -15,6 +16,7 @@ const isValid = (c: Convention) =>
 export const conventions: Convention[] = (seed.conventions as Convention[]).filter(isValid);
 
 export const conventionsById = new Map<number, Convention>(conventions.map((c) => [c.id, c]));
+export const pinCoordinatesById = spreadCoincidentPins(conventions);
 
 export const snapshotYear: string = seed.meta.generatedAt.slice(0, 4);
 
@@ -37,7 +39,7 @@ export const conventionFeatures: GeoJSON.FeatureCollection<
   features: conventions.map((c) => ({
     type: 'Feature',
     id: c.id,
-    geometry: { type: 'Point', coordinates: [c.longitude, c.latitude] },
+    geometry: { type: 'Point', coordinates: pinCoordinatesById.get(c.id)! },
     properties: { id: c.id, past: eventStatus(c.endDate, today) === 'past' },
   })),
 };

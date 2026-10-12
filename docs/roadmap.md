@@ -1,8 +1,8 @@
 # Roadmap
 
 ## Now (this update): functionality
-Paw pins, dark mode, "where am I" with radar, Nearest 10 with dotted lines, Saved, Popular,
-Flights link, fast dev loop.
+Purple paw pins, a saved light/dark switch, "where am I" with radar, Nearest 10, selected-convention
+paw trails, Saved, Popular, Flights link, and the fast dev loop.
 
 ## Next
 1. **Data refresh.** Every convention gets current dates plus a source and a verified-on date.
@@ -22,9 +22,13 @@ Flights link, fast dev loop.
   explicit opt-in, friends-only, a "ghost mode", coarse location by default, easy blocking and
   reporting, and Apple/Google privacy disclosures. Conventions include minors, so safety defaults
   matter more than features here.
+- **Who's going on convention details.** Once accounts exist, show opted-in friends attending each
+  convention at the bottom of its details. The current panel keeps the space reserved with an
+  explanatory empty state; it does not invent or store attendee identities.
 - **Status updates** ("Going to Megaplex"): small and safe once accounts exist.
 - **"Find your homie" mode (Pokemon Go style).** Needs live location, a realtime backend, and a plan
   for the fact that GPS is unreliable inside big convention centers (walls, crowds, multiple floors).
   Indoor positioning (Bluetooth beacons, venue maps) is a research task before it's a coding task.
 - **Street-view-style visuals** at the venue: depends on the licensing of any imagery used.
+- **Convention photos.** Add verified venue/convention images near the top of the expanded convention details, when scrolling up after selecting a convention. This is a later data and design task.
 - **Custom map look** after launch (restyle the basemap in Maputnik and host the style file).

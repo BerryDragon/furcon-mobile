@@ -10,8 +10,9 @@
    It is donation-funded public infrastructure, so before a big launch either sponsor it or
    self-host tiles (e.g. Protomaps). Alternatives considered: Google Maps (needs a Cloud billing
    account and key), Apple Maps (iOS only).
-4. **Circle layers, not image markers.** No asset-sizing guesswork, one GPU draw. A paw icon is
-   a polish task once it can be tuned on a real screen.
+4. **Paw image pins with GPU-rendered cluster circles.** Density-specific assets keep the paws
+   sharp. Cluster circles retain their size but omit counts, and coincident coordinates are spread
+   slightly on the map so each convention pin can be tapped.
 5. **Bundled snapshot is the initial cache.** The app paints from data on the device. The API
    refresh and local cache come in a later milestone. The website API must be locked down
    (writes require auth) before it is hosted for the app.
@@ -20,12 +21,12 @@
 7. **Travel estimates keep the website's rules** ($0.50/mile; flight tiers 200/350/500) with two
    guards: no driving cost beyond 1,500 miles, no flight price beyond 3,500 miles.
 
-8. **Paw pins are images drawn on the GPU** (`assets/paw*.png`, made by `scripts/make_paw_icons.py`
-   at 1x/2x/3x so they're the same size and sharp on every phone). Selected = bigger paw plus a halo.
-   Saved = a gold ring. Past events = gray paw.
-9. **Dark mode follows the phone** and swaps the basemap to OpenFreeMap's `dark` style, which is
-   an unmodified upstream fork and marked incomplete there. Good enough for now; restyle after launch.
-   All UI colors are in `src/theme.ts` and a test enforces WCAG AA contrast for both palettes.
+8. **Paw pins are density-specific images** (`assets/paw*.png`, made by `scripts/make_paw_icons.py`
+   at 1x/2x/3x). Selected = bigger paw plus a halo. Saved = a gold ring. Past events use lavender
+   rather than gray so all convention pins remain colorful.
+9. **Appearance follows the phone until changed.** A saved in-app switch lets people choose light
+   or dark mode. Dark mode adjusts OpenFreeMap's hosted style to keep parks, water, and roads
+   distinct. All UI colors are in `src/theme.ts` and a test enforces WCAG AA contrast for both palettes.
 10. **The "you are here" radar is a native view anchored to the map (`Marker`) animated with
     Reanimated**, so the pulse runs on the UI thread and never re-renders React or the map.
 11. **One bottom sheet, two contents** (details or a list), floating above a bottom bar with three

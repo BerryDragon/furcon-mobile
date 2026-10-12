@@ -44,7 +44,6 @@ export function DetailsPanel({ convention, distanceMiles, saved, onToggleSave, b
   const past = eventStatus(convention.endDate) === 'past';
   const travel = distanceMiles === null ? null : estimateTravel(distanceMiles);
 
-  // Past events have no real dates to search, so search by place only.
   const flightQuery = past
     ? `Flights to ${convention.city}, ${convention.state}`
     : `Flights to ${convention.city}, ${convention.state} on ${convention.startDate}`;
@@ -62,23 +61,49 @@ export function DetailsPanel({ convention, distanceMiles, saved, onToggleSave, b
         </Pressable>
       )}
 
-      <Text style={[styles.title, { color: colors.ink }]} accessibilityRole="header">
-        {convention.name}
-      </Text>
+      <View style={styles.titleRow}>
+        <Text style={[styles.title, { color: colors.ink }]} accessibilityRole="header">
+          {convention.name}
+        </Text>
+        <Pressable
+          onPress={() => onToggleSave(convention.id)}
+          style={[
+            styles.saveButton,
+            { backgroundColor: saved ? colors.brandSoft : colors.surface, borderColor: colors.brand },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={saved ? 'Remove from saved conventions' : 'Save convention'}
+        >
+          <Text style={[styles.saveLabel, { color: colors.brand }]}>{saved ? 'Saved' : 'Save'}</Text>
+        </Pressable>
+      </View>
       <Text style={[styles.subtitle, { color: colors.muted }]}>
         {convention.city}, {convention.state}
       </Text>
 
+      <View style={styles.actions}>
+        <Action
+          label="Directions"
+          onPress={() =>
+            open(
+              `https://www.google.com/maps/dir/?api=1&destination=${convention.latitude},${convention.longitude}`,
+            )
+          }
+        />
+        <Action
+          label="Flights"
+          onPress={() =>
+            open(`https://www.google.com/travel/flights?q=${encodeURIComponent(flightQuery)}`)
+          }
+        />
+        {convention.websiteUrl && (
+          <Action label="Website" onPress={() => open(convention.websiteUrl as string)} />
+        )}
+      </View>
+
       <Text style={[styles.line, { color: colors.ink }]}>
         {formatDateRange(convention.startDate, convention.endDate)}
       </Text>
-      {past && (
-        <View style={[styles.warn, { backgroundColor: colors.warnBg }]} accessibilityRole="alert">
-          <Text style={[styles.warnText, { color: colors.warnInk }]}>
-            Dates are from the original dataset and haven't been updated for this year yet.
-          </Text>
-        </View>
-      )}
 
       <Text style={[styles.line, { color: colors.ink }]}>
         {distanceMiles === null
@@ -109,30 +134,11 @@ export function DetailsPanel({ convention, distanceMiles, saved, onToggleSave, b
         </View>
       )}
 
-      <View style={styles.actions}>
-        <Action
-          label={saved ? 'Saved' : 'Save'}
-          solid={saved}
-          onPress={() => onToggleSave(convention.id)}
-        />
-        <Action
-          label="Directions"
-          onPress={() =>
-            open(
-              `https://www.google.com/maps/dir/?api=1&destination=${convention.latitude},${convention.longitude}`,
-            )
-          }
-        />
-        <Action
-          label="Flights"
-          onPress={() =>
-            open(`https://www.google.com/travel/flights?q=${encodeURIComponent(flightQuery)}`)
-          }
-        />
-        {convention.websiteUrl && (
-          <Action label="Website" onPress={() => open(convention.websiteUrl as string)} />
-        )}
+      <View style={[styles.goingCard, { borderColor: colors.hairline }]}>
+        <Text style={[styles.goingTitle, { color: colors.ink }]}>Who's going</Text>
+        <Text style={[styles.fine, { color: colors.muted }]}>Friends who mark themselves as going will appear here.</Text>
       </View>
+
     </BottomSheetScrollView>
   );
 }
@@ -141,15 +147,18 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingBottom: 40 },
   back: { minHeight: 48, justifyContent: 'center', alignSelf: 'flex-start' },
   backText: { fontSize: 15, fontWeight: '700' },
-  title: { fontSize: 22, fontWeight: '700' },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  title: { flex: 1, fontSize: 22, fontWeight: '700' },
+  saveButton: { minHeight: 38, minWidth: 66, paddingHorizontal: 14, borderRadius: 19, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  saveLabel: { fontSize: 14, fontWeight: '700' },
   subtitle: { fontSize: 15, marginTop: 2, marginBottom: 10 },
   line: { fontSize: 15, marginTop: 4 },
-  warn: { borderRadius: 10, padding: 10, marginTop: 8 },
-  warnText: { fontSize: 13 },
   card: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 1 },
   cardTitle: { fontSize: 14, fontWeight: '700', marginBottom: 4 },
   cardLine: { fontSize: 15, marginTop: 2 },
   fine: { fontSize: 12, marginTop: 8 },
+  goingCard: { marginTop: 18, padding: 14, borderRadius: 14, borderWidth: 1 },
+  goingTitle: { fontSize: 16, fontWeight: '700' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 18 },
   button: {
     minHeight: 48,

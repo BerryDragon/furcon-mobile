@@ -3,10 +3,12 @@
 A fast, smooth map of furry conventions for Android (and later iOS). Built with Expo (React Native),
 TypeScript, and MapLibre. This is the mobile companion to the website repo, FurCon-Map-Track.
 
-**What it does now:** full-screen vector map with paw pins and clusters, tap a pin for a swipe-up
-details sheet, instant search, a "where am I" button (zooms in with a radar ping), three bottom
-buttons (Nearest 10 with dotted lines on the map, Saved, Popular), save conventions on the phone,
-flights and directions links, rough travel estimates, and automatic dark mode.
+**What it does now:** full-screen vector map with purple paw pins, tap a pin for a swipe-up details
+sheet, instant search, a "where am I" button (zooms in with a radar ping), three bottom buttons
+(Nearest 10, Saved, Popular), animated paw steps from your location to the selected convention,
+save conventions on the phone, flights and
+directions links, rough travel estimates, and a saved light/dark mode choice that starts by
+following the phone setting.
 
 ## Run it on your Android phone (Windows)
 
@@ -31,9 +33,9 @@ on your phone, and from then on it hot-reloads from your PC like Expo Go does.
    use `npx expo start --dev-client --tunnel`.
 
 ### What "working" looks like
-- A map of the US with purple numbered circles (clusters) and purple dots (conventions).
-- A yellow banner saying the dates are from the 2025 dataset. This is expected until the data
-  refresh milestone.
+- A map of the US with unlabeled purple cluster circles and purple paw pins.
+- Past event dates are shown without a dataset warning. The data refresh milestone updates them
+  before launch.
 - Tap a cluster and it zooms in. Tap a dot and a sheet slides up; drag it up for more.
 - Type "anthro" in the search bar, tap a result, and the map flies there.
 - Tap the round target button, allow location, and the map frames you and the five nearest conventions.
@@ -57,8 +59,9 @@ Daily loop once the development app is installed:
 You only need a new development build when you add or remove a **native** library, or change
 plugins in `app.json`. Changing screens, colors, logic, or data never needs one.
 
-## Dark mode
-It follows your phone: swipe down from the top and toggle **Dark theme**, and the app and map switch.
+## Appearance
+Tap the sun/moon button beside the location control to switch between light and dark mode. Until
+you choose, the app follows your phone's setting. Your choice is saved on this phone.
 
 ## Everyday commands
 - `npm run typecheck` and `npm test` (47 tests). Run both before every commit.
