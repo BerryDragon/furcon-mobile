@@ -26,7 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomBar, type Panel } from '../components/BottomBar';
 import { DetailsPanel } from '../components/DetailsPanel';
 import { ListPanel, toListItems, type ListItem } from '../components/ListPanel';
-import { PawTrail } from '../components/PawTrail';
+import { RoutePaw } from '../components/RoutePaw';
 import { SelectedPaw } from '../components/SelectedPaw';
 import { SearchBar } from '../components/SearchBar';
 import { Sheet, type SheetMode } from '../components/Sheet';
@@ -106,7 +106,6 @@ export function MapScreen() {
   const [panel, setPanel] = useState<Panel | null>(null);
   const [query, setQuery] = useState('');
   const [user, setUser] = useState<LatLng | null>(null);
-  const [mapZoom, setMapZoom] = useState(INITIAL_ZOOM);
   const [radarKey, setRadarKey] = useState(0);
   const [locating, setLocating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -141,10 +140,19 @@ export function MapScreen() {
     () => (user ? nearestTo(user, nearTargets, NEAREST_COUNT) : []),
     [user],
   );
-  const routes = useMemo(
-    () => (panel === 'nearest' && user ? routeFeatures(user, nearest, pinCoordinatesById) : EMPTY_ROUTES),
-    [panel, user, nearest],
-  );
+  const routes = useMemo(() => {
+    if (!user) return EMPTY_ROUTES;
+    if (panel === 'nearest') {
+      const hasSelected = selected && nearest.some(({ convention }) => convention.id === selected.id);
+      const routeItems = selected && !hasSelected
+        ? [...nearest, { convention: selected, miles: distances.get(selected.id) ?? haversineMiles(user, selected) }]
+        : nearest;
+      return routeFeatures(user, routeItems, pinCoordinatesById);
+    }
+    return selected
+      ? routeFeatures(user, [{ convention: selected, miles: distances.get(selected.id) ?? haversineMiles(user, selected) }], pinCoordinatesById)
+      : EMPTY_ROUTES;
+  }, [panel, user, nearest, selected, distances]);
   const listItems = useMemo<ListItem[]>(() => {
     if (panel === 'nearest') return toListItems(nearest, true);
     if (panel === 'saved') {
@@ -293,7 +301,6 @@ export function MapScreen() {
   const onRegionDidChange = useCallback((event: NativeSyntheticEvent<ViewStateChangeEvent>) => {
     const { center, zoom } = event.nativeEvent;
     viewRef.current = { center: [center[0], center[1]], zoom };
-    setMapZoom(zoom);
   }, []);
 
   return (
@@ -320,7 +327,7 @@ export function MapScreen() {
           maxZoom={16}
         />
 
-        {panel === 'nearest' && user && (
+        {routes.features.length > 0 && (
           <GeoJSONSource id="routes" data={routes}>
             <Layer
               id="route-lines"
@@ -385,12 +392,12 @@ export function MapScreen() {
         )}
 
         {selected && selectedPin && user && (
-          <PawTrail
-            key={`selected-trail-${selected.id}`}
+          <RoutePaw
+            key={`route-paw-${selected.id}`}
             routeKey={selected.id}
             from={user}
             to={{ longitude: selectedPin[0], latitude: selectedPin[1] }}
-            zoom={mapZoom}
+            saved={savedSet.has(selected.id)}
           />
         )}
 
